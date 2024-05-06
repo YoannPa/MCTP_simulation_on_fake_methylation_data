@@ -18,7 +18,7 @@ rbimodal_meth <- function(n){
 ```
 Sometimes, it happens in bulk methylation data that, instead of following a bimodal distribution, methylation beta values follow a trimodal distribution. This distribution is also defined on the interval (0-1), but it possesses 3 local maxima, usually found around x = 0, x = 0.5 and x = 1, respectively.  
 There is no straight forward way to generate such trimodal distribution in R. In order to create it, I made use of the `rtruncnorm()` function from the [truncnorm R package (Olaf Mersmann et al. 2023)](https://CRAN.R-project.org/package=truncnorm) as follows:  
-```
+```R
 rtrimodal_meth <- function(n){
   low_distrib <- truncnorm::rtruncnorm(n, a = 0, b = 1, mean = 0, sd = 0.05)
   high_distrib <- truncnorm::rtruncnorm(n, a = 0, b = 1, mean = 1, sd = 0.05)
