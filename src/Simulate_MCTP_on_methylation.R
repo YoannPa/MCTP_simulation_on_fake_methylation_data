@@ -20,64 +20,129 @@ Imports = c("truncnorm", "nparcomp", "data.table", "parallel")
 invisible(lapply(Imports, library, character.only = T))
 source("random_generation_methylation_values.R")
 
+##PARAMETERS
+asy_method <- c("fisher", "mult.t", "log.odds", "normal")
+sample_sizes <- c(10, 100, 1000)
+
+##ANALYSIS
 # Simulate MCTP with Tukey contrast 10,000 times using different asymptotic
 # approximation on random generation of bimodal
 # methylation distributions
-asy_method <- c("fisher", "mult.t", "log.odds", "normal")
-ls_bimodal_asy <- lapply(
-  X = asy_method, FUN = function(asy){
-    ls_res_bimodal <- mclapply(X = seq(10000), mc.cores = 8, FUN = function(i){
-      ls_grp <- list(
-        data.table("groups" = 1, "betas" = rbimodal_meth(n = 1000)),
-        data.table("groups" = 2, "betas" = rbimodal_meth(n = 1000)),
-        data.table("groups" = 3, "betas" = rbimodal_meth(n = 1000))
-      )
-      dt_sim_bimodal <- rbindlist(ls_grp)
-
-      res_mctp <- mctp(
-        betas ~ groups, data = dt_sim_bimodal, asy.method = asy, type = "Tukey",
-        alternative = "two.sided", plot.simci = FALSE,
-        info = FALSE)$Analysis.Inf$p.Value
-    })
+ls_bimodal_asy <- lapply(X = asy_method, FUN = function(asy){
+  cat(asy,"\n")
+  ls_sample_sizes <- lapply(X = sample_sizes, FUN = function(sampl){
+    cat("\tSample size=", sampl, "\n")
+    if(Sys.info()[["sysname"]] == "Linux"){
+      ls_res_bimodal <- mclapply(X = seq(1000), mc.cores = 15, FUN = function(i){
+        ls_grp <- list(
+          data.table("groups" = 1, "betas" = rbimodal_meth(n = sampl)),
+          data.table("groups" = 2, "betas" = rbimodal_meth(n = sampl)),
+          data.table("groups" = 3, "betas" = rbimodal_meth(n = sampl))
+        )
+        dt_sim_bimodal <- rbindlist(ls_grp)
+        
+        res_mctp <- mctp(
+          betas ~ groups, data = dt_sim_bimodal, asy.method = asy,
+          type = "Tukey", alternative = "two.sided", plot.simci = FALSE,
+          info = FALSE)$Analysis.Inf$p.Value
+      })
+    } else {
+      ls_res_bimodal <- lapply(X = seq(1000), FUN = function(i){
+        ls_grp <- list(
+          data.table("groups" = 1, "betas" = rbimodal_meth(n = sampl)),
+          data.table("groups" = 2, "betas" = rbimodal_meth(n = sampl)),
+          data.table("groups" = 3, "betas" = rbimodal_meth(n = sampl))
+        )
+        dt_sim_bimodal <- rbindlist(ls_grp)
+        
+        res_mctp <- mctp(
+          betas ~ groups, data = dt_sim_bimodal, asy.method = asy,
+          type = "Tukey", alternative = "two.sided", plot.simci = FALSE,
+          info = FALSE)$Analysis.Inf$p.Value
+      })
+    }
     unlist(ls_res_bimodal)
   })
+  names(ls_sample_sizes) <- as.character(sample_sizes)
+  ls_sample_sizes
+})
 names(ls_bimodal_asy) <- asy_method
 
 # Get percentages of p.values below 0.05 for each asymptotic approximation
-res_bimodal <- vapply(X = names(ls_bimodal_asy), FUN = function(asy){
-  paste0(round(length(ls_bimodal_asy[[asy]][ls_bimodal_asy[[asy]] <= 0.05])/
-      length(ls_bimodal_asy[[asy]])*100, 2), "%")
-}, FUN.VALUE = character(length = 1L))
+# and sample sizes
+res_bimodal <- lapply(X = names(ls_bimodal_asy), FUN = function(asy){
+  ls_asy_res <- lapply(X = seq_along(ls_bimodal_asy[[asy]]), FUN = function(i){
+    err_rate <- paste0(round(
+      length(ls_bimodal_asy[[asy]][[i]][ls_bimodal_asy[[asy]][[i]] <= 0.05])/
+        length(ls_bimodal_asy[[asy]][[i]])*100, 2), "%")
+    data.table(
+      "Asympt. approx." = asy,
+      "Sample size" = names(ls_bimodal_asy[[asy]])[i],
+      "Sim. err. rate" = err_rate)
+  })
+  rbindlist(l = ls_asy_res)
+})
+res_bimodal <- rbindlist(l = res_bimodal)
 
 # Same with trimodal methylation distributions
-ls_trimodal_asy <- lapply(
-  X = asy_method, FUN = function(asy){
-    ls_res_trimodal <- mclapply(X = seq(10000), mc.cores = 10, FUN = function(i){
-      ls_grp <- list(
-        data.table("groups" = 1, "betas" = rtrimodal_meth(n = 1000)),
-        data.table("groups" = 2, "betas" = rtrimodal_meth(n = 1000)),
-        data.table("groups" = 3, "betas" = rtrimodal_meth(n = 1000))
-      )
-      dt_sim_trimodal <- rbindlist(ls_grp)
-
-      res_mctp <- mctp(
-        betas ~ groups, data = dt_sim_trimodal, asy.method = asy,
-        type = "Tukey", alternative = "two.sided", plot.simci = FALSE,
-        info = FALSE)$Analysis.Inf$p.Value
-    })
+ls_trimodal_asy <- lapply(X = asy_method, FUN = function(asy){
+  cat(asy,"\n")
+  ls_sample_sizes <- lapply(X = sample_sizes, FUN = function(sampl){
+    cat("\tSample size=", sampl, "\n")
+    if(Sys.info()[["sysname"]] == "Linux"){
+      ls_res_trimodal <- mclapply(X = seq(1000), mc.cores = 15, FUN = function(i){
+        ls_grp <- list(
+          data.table("groups" = 1, "betas" = rtrimodal_meth(n = sampl)),
+          data.table("groups" = 2, "betas" = rtrimodal_meth(n = sampl)),
+          data.table("groups" = 3, "betas" = rtrimodal_meth(n = sampl))
+        )
+        dt_sim_trimodal <- rbindlist(ls_grp)
+        
+        res_mctp <- mctp(
+          betas ~ groups, data = dt_sim_trimodal, asy.method = asy,
+          type = "Tukey", alternative = "two.sided", plot.simci = FALSE,
+          info = FALSE)$Analysis.Inf$p.Value
+      })
+    } else {
+      ls_res_trimodal <- lapply(X = seq(1000), FUN = function(i){
+        ls_grp <- list(
+          data.table("groups" = 1, "betas" = rtrimodal_meth(n = sampl)),
+          data.table("groups" = 2, "betas" = rtrimodal_meth(n = sampl)),
+          data.table("groups" = 3, "betas" = rtrimodal_meth(n = sampl))
+        )
+        dt_sim_trimodal <- rbindlist(ls_grp)
+        
+        res_mctp <- mctp(
+          betas ~ groups, data = dt_sim_trimodal, asy.method = asy,
+          type = "Tukey", alternative = "two.sided", plot.simci = FALSE,
+          info = FALSE)$Analysis.Inf$p.Value
+      })
+    }
     unlist(ls_res_trimodal)
   })
+  names(ls_sample_sizes) <- as.character(sample_sizes)
+  ls_sample_sizes
+})
 names(ls_trimodal_asy) <- asy_method
 
-res_trimodal <- vapply(X = names(ls_trimodal_asy), FUN = function(asy){
-  paste0(round(length(ls_trimodal_asy[[asy]][ls_trimodal_asy[[asy]] <= 0.05])/
-                 length(ls_trimodal_asy[[asy]])*100, 2), "%")
-}, FUN.VALUE = character(length = 1L))
+res_trimodal <- lapply(X = names(ls_trimodal_asy), FUN = function(asy){
+  ls_asy_res <- lapply(X = seq_along(ls_trimodal_asy[[asy]]), FUN = function(i){
+    err_rate <- paste0(round(
+      length(ls_trimodal_asy[[asy]][[i]][ls_trimodal_asy[[asy]][[i]] <= 0.05])/
+        length(ls_trimodal_asy[[asy]][[i]])*100, 2), "%")
+    data.table(
+      "Asympt. approx." = asy,
+      "Sample size" = names(ls_trimodal_asy[[asy]])[i],
+      "Sim. err. rate" = err_rate)
+  })
+  rbindlist(l = ls_asy_res)
+})
+res_trimodal <- rbindlist(l = res_trimodal)
 
 # Put results together
-dt_sim_res <- as.data.table(
-  rbind(res_bimodal, res_trimodal), keep.rownames = "distributions")
-dt_sim_res$distributions <- c("rbimodal_meth()", "rtrimodal_meth()")
+ls_res <- list(
+  "`rbimodal_meth()`" = res_bimodal, "`rtrimodal_meth()`" = res_trimodal)
+dt_sim_res <- rbindlist(l = ls_res, idcol = "Distributions")
 write(
   x = knitr::kable(x = dt_sim_res),
   file = "MCTP_simulation_on_methylation_results.txt")
